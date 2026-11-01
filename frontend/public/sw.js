@@ -1,6 +1,7 @@
 const CACHE_NAME = 'pfm-cache-v1';
 const PRECACHE_URLS = [
   '/',
+  '/login',
   '/accounts',
   '/cashflow',
   '/goals',

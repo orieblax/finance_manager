@@ -27,7 +27,7 @@ import {
 import { formatCurrency } from '@/lib/i18n';
 
 export default function CashflowPage() {
-  const { t, currentMonth, setCurrentMonth, refreshTrigger, triggerRefresh, showMessage } = useApp();
+  const { t, currentMonth, setCurrentMonth, refreshTrigger, triggerRefresh, showMessage, user, authLoading } = useApp();
 
   const [activeTab, setActiveTab] = useState<'receivables' | 'expenses' | 'extras'>('receivables');
   const [accounts, setAccounts] = useState<AccountRecord[]>([]);
@@ -303,6 +303,14 @@ export default function CashflowPage() {
 
   const totalExpensesBudgeted = expenses.reduce((sum, e) => sum + e.budgetedAmount, 0);
   const totalExpensesPending = expenses.filter((e) => !e.isPaid).reduce((sum, e) => sum + e.remainingAmount, 0);
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6">

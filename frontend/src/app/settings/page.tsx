@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Settings,
   Languages,
@@ -12,24 +12,15 @@ import {
   Check,
   Shield,
   FileSpreadsheet,
-  LogIn,
   LogOut,
-  Sparkles,
+  User,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { parseAndImportExcelFile, exportLocalDataJson, importLocalDataJson } from '@/lib/import/xlsxImporter';
-import { createClient } from '@/utils/supabase/client';
 import { db } from '@/lib/db/dexie';
 
 export default function SettingsPage() {
-  const { t, lang, setLang, currentMonth, triggerRefresh, showMessage } = useApp();
-
-  // Supabase Auth State
-  const [supabase] = useState(() => createClient());
-  const [user, setUser] = useState<any>(null);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
+  const { t, lang, setLang, currentMonth, triggerRefresh, showMessage, user, logout } = useApp();
 
   // Sync state
   const [isSyncing, setIsSyncing] = useState(false);
@@ -37,20 +28,6 @@ export default function SettingsPage() {
 
   // Copied SQL state
   const [isSqlCopied, setIsSqlCopied] = useState(false);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [supabase]);
 
   // Handle Excel File Upload
   const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -102,37 +79,10 @@ export default function SettingsPage() {
     }
   };
 
-  // Handle Supabase Sign In / Sign Up
-  const handleAuth = async (isSignUp: boolean) => {
-    if (!email || !password) return;
-    setAuthLoading(true);
-    try {
-      if (isSignUp) {
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
-        showMessage('Cuenta creada. Revisa tu email o inicia sesión', 'success');
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        showMessage('Sesión iniciada con éxito', 'success');
-      }
-    } catch (err: any) {
-      showMessage(err.message || 'Error de autenticación', 'error');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    showMessage('Sesión cerrada', 'info');
-  };
-
   // Handle Cloud Sync (Push current Dexie state to Supabase)
   const handleCloudSync = async () => {
     if (!user) {
-      showMessage('Debes iniciar sesión con Supabase para sincronizar en la nube', 'error');
+      showMessage('Debes iniciar sesión con tu cuenta para sincronizar', 'error');
       return;
     }
 
@@ -201,6 +151,28 @@ CREATE POLICY "Users can manage own snapshots" ON public.finance_snapshots FOR A
       <div>
         <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">{t.settings.title}</h1>
         <p className="text-sm text-gray-400">Preferencias, copia de seguridad local, sincronización en nube y privacidad</p>
+      </div>
+
+      {/* User Account & Session Profile */}
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-4">
+        <h2 className="text-base font-bold text-white flex items-center gap-2">
+          <User className="w-5 h-5 text-indigo-400" />
+          <span>Cuenta de Usuario Activa</span>
+        </h2>
+        <div className="bg-gray-800/60 border border-gray-700/60 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <span className="text-xs font-medium text-gray-400">Sesión iniciada como:</span>
+            <p className="text-base font-bold text-white">{user?.email || 'Usuario Conectado'}</p>
+            <p className="text-[11px] text-emerald-400 mt-0.5">Tus datos en este dispositivo están aislados para tu usuario</p>
+          </div>
+          <button
+            onClick={logout}
+            className="flex items-center gap-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 px-4 py-2 rounded-xl text-xs font-semibold transition-colors"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Cerrar Sesión</span>
+          </button>
+        </div>
       </div>
 
       {/* Language Preferences */}
@@ -285,71 +257,23 @@ CREATE POLICY "Users can manage own snapshots" ON public.finance_snapshots FOR A
         </h2>
         <p className="text-xs text-gray-400">{t.settings.syncNotice}</p>
 
-        {user ? (
-          <div className="bg-gray-800/60 border border-gray-700/60 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <span className="text-xs font-medium text-gray-400">Conectado como:</span>
-              <p className="text-sm font-bold text-white">{user.email}</p>
-              {lastSyncTime && (
-                <p className="text-[11px] text-indigo-400 mt-0.5">Última sincronización: {lastSyncTime}</p>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleCloudSync}
-                disabled={isSyncing}
-                className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-md transition-colors"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                <span>{isSyncing ? 'Sincronizando...' : t.settings.syncNow}</span>
-              </button>
-              <button
-                onClick={handleSignOut}
-                className="bg-gray-700 hover:bg-gray-600 text-gray-300 p-2 rounded-xl text-xs"
-                title="Cerrar Sesión"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
+        <div className="bg-gray-800/60 border border-gray-700/60 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <span className="text-xs font-medium text-gray-400">Sincronización de tu cuenta:</span>
+            <p className="text-sm font-bold text-white">{user?.email}</p>
+            {lastSyncTime && (
+              <p className="text-[11px] text-indigo-400 mt-0.5">Última sincronización: {lastSyncTime}</p>
+            )}
           </div>
-        ) : (
-          <div className="space-y-3 pt-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input
-                type="email"
-                placeholder="tu-correo@ejemplo.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-              />
-              <input
-                type="password"
-                placeholder="Contraseña"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => handleAuth(false)}
-                disabled={authLoading}
-                className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-xl text-xs font-semibold shadow-md transition-colors"
-              >
-                {authLoading ? 'Procesando...' : 'Iniciar Sesión'}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAuth(true)}
-                disabled={authLoading}
-                className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-200 py-2 rounded-xl text-xs font-semibold transition-colors"
-              >
-                Crear Cuenta
-              </button>
-            </div>
-          </div>
-        )}
+          <button
+            onClick={handleCloudSync}
+            disabled={isSyncing}
+            className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-md transition-colors"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>{isSyncing ? 'Sincronizando...' : t.settings.syncNow}</span>
+          </button>
+        </div>
       </div>
 
       {/* SQL Setup Helper */}

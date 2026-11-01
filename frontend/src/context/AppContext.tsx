@@ -1,7 +1,10 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { translations, Language } from '@/lib/i18n';
+import { createClient } from '@/utils/supabase/client';
+import { setActiveUserId } from '@/lib/db/dexie';
 
 interface AppContextType {
   lang: Language;
@@ -13,15 +16,25 @@ interface AppContextType {
   triggerRefresh: () => void;
   message: { text: string; type: 'success' | 'error' | 'info' } | null;
   showMessage: (text: string, type?: 'success' | 'error' | 'info') => void;
+  user: any | null;
+  authLoading: boolean;
+  logout: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [supabase] = useState(() => createClient());
+
   const [lang, setLangState] = useState<Language>('es');
   const [currentMonth, setCurrentMonthState] = useState<string>('2026-10');
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const [user, setUser] = useState<any | null>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
 
   useEffect(() => {
     const savedLang = localStorage.getItem('pfm_lang') as Language;
@@ -36,7 +49,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const mStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       setCurrentMonthState(mStr);
     }
-  }, []);
+
+    // Check active auth session
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user ?? null);
+      if (user) {
+        setActiveUserId(user.id);
+      } else {
+        setActiveUserId(undefined);
+      }
+      setAuthLoading(false);
+      triggerRefresh();
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const activeUser = session?.user ?? null;
+      setUser(activeUser);
+      if (activeUser) {
+        setActiveUserId(activeUser.id);
+      } else {
+        setActiveUserId(undefined);
+      }
+      setAuthLoading(false);
+      triggerRefresh();
+
+      if (!activeUser && pathname !== '/login') {
+        router.push('/login');
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase, pathname, router]);
 
   const setLang = (newLang: Language) => {
     setLangState(newLang);
@@ -60,6 +105,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }, 4000);
   };
 
+  const logout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setActiveUserId(undefined);
+    triggerRefresh();
+    router.push('/login');
+    router.refresh();
+  };
+
   const t = translations[lang];
 
   return (
@@ -74,6 +128,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         triggerRefresh,
         message,
         showMessage,
+        user,
+        authLoading,
+        logout,
       }}
     >
       {children}

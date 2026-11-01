@@ -7,7 +7,7 @@ import { db, GoalRecord, AccountRecord } from '@/lib/db/dexie';
 import { formatCurrency } from '@/lib/i18n';
 
 export default function GoalsPage() {
-  const { t, refreshTrigger, triggerRefresh, showMessage } = useApp();
+  const { t, refreshTrigger, triggerRefresh, showMessage, user, authLoading } = useApp();
   const [goals, setGoals] = useState<GoalRecord[]>([]);
   const [wallets, setWallets] = useState<AccountRecord[]>([]);
 
@@ -103,6 +103,14 @@ export default function GoalsPage() {
   const totalSaved = goals.reduce((sum, g) => sum + g.currentAmount, 0);
   const totalTarget = goals.reduce((sum, g) => sum + g.targetAmount, 0);
   const overallPct = totalTarget > 0 ? (totalSaved / totalTarget) * 100 : 0;
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6">

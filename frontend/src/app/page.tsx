@@ -22,7 +22,7 @@ import { calculateProjections, FinancialReport } from '@/lib/finance/projections
 import { formatCurrency } from '@/lib/i18n';
 
 export default function DashboardPage() {
-  const { t, currentMonth, refreshTrigger } = useApp();
+  const { t, currentMonth, refreshTrigger, user, authLoading } = useApp();
   const [report, setReport] = useState<FinancialReport | null>(null);
   const [accounts, setAccounts] = useState<AccountRecord[]>([]);
   const [upcomingItems, setUpcomingItems] = useState<Array<{ name: string; amount: number; dueDay: number; type: 'bill' | 'income' }>>([]);
@@ -30,6 +30,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function loadData() {
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
       setIsLoading(true);
       const [accs, exps, recs, exts] = await Promise.all([
         db.accounts.toArray(),
@@ -72,7 +76,7 @@ export default function DashboardPage() {
     loadData();
   }, [currentMonth, refreshTrigger]);
 
-  if (isLoading || !report) {
+  if (authLoading || isLoading || !report) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500"></div>

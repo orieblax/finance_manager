@@ -105,8 +105,8 @@ export class FinanceDatabase extends Dexie {
   goals!: Table<GoalRecord, string>;
   syncMeta!: Table<SyncMetaRecord, string>;
 
-  constructor() {
-    super('PersonalFinanceManagerDB');
+  constructor(dbName: string = 'PersonalFinanceManagerDB') {
+    super(dbName);
     this.version(1).stores({
       accounts: 'id, name, type, isArchived, updatedAt',
       transactions: 'id, accountId, type, category, date, toAccountId, createdAt',
@@ -120,4 +120,32 @@ export class FinanceDatabase extends Dexie {
   }
 }
 
-export const db = new FinanceDatabase();
+const dbs = new Map<string, FinanceDatabase>();
+let currentActiveUserId: string | undefined;
+
+export function setActiveUserId(userId?: string) {
+  currentActiveUserId = userId;
+}
+
+export function getDb(userId?: string): FinanceDatabase {
+  const id = userId ?? currentActiveUserId;
+  const dbName = id ? `PersonalFinanceManagerDB_${id}` : 'PersonalFinanceManagerDB';
+  let instance = dbs.get(dbName);
+  if (!instance) {
+    instance = new FinanceDatabase(dbName);
+    dbs.set(dbName, instance);
+  }
+  return instance;
+}
+
+// Transparent Proxy that always routes to the currently active user's database
+export const db: FinanceDatabase = new Proxy({} as FinanceDatabase, {
+  get(_target, prop: keyof FinanceDatabase) {
+    const activeDb = getDb();
+    const val = activeDb[prop];
+    if (typeof val === 'function') {
+      return val.bind(activeDb);
+    }
+    return val;
+  },
+});

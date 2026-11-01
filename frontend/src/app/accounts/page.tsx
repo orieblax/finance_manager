@@ -20,7 +20,7 @@ import { db, AccountRecord, TransactionRecord } from '@/lib/db/dexie';
 import { formatCurrency } from '@/lib/i18n';
 
 export default function AccountsPage() {
-  const { t, refreshTrigger, triggerRefresh, showMessage } = useApp();
+  const { t, refreshTrigger, triggerRefresh, showMessage, user, authLoading } = useApp();
   const [accounts, setAccounts] = useState<AccountRecord[]>([]);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
 
@@ -168,6 +168,14 @@ export default function AccountsPage() {
     triggerRefresh();
     showMessage(t.common.success, 'success');
   };
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6">

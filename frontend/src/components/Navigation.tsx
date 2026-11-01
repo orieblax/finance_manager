@@ -3,12 +3,17 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Wallet, ArrowUpDown, Target, Settings } from 'lucide-react';
+import { LayoutDashboard, Wallet, ArrowUpDown, Target, Settings, LogOut, User } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 
 export default function Navigation() {
   const pathname = usePathname();
-  const { t } = useApp();
+  const { t, user, logout } = useApp();
+
+  // Hide navigation completely on login page
+  if (pathname === '/login') {
+    return null;
+  }
 
   const navItems = [
     { href: '/', label: t.nav.dashboard, icon: LayoutDashboard },
@@ -17,6 +22,12 @@ export default function Navigation() {
     { href: '/goals', label: t.nav.goals, icon: Target },
     { href: '/settings', label: t.nav.settings, icon: Settings },
   ];
+
+  const handleLogout = async () => {
+    if (confirm('¿Deseas cerrar sesión?')) {
+      await logout();
+    }
+  };
 
   return (
     <>
@@ -53,9 +64,27 @@ export default function Navigation() {
           })}
         </nav>
 
-        <div className="px-3 py-3 text-xs text-gray-500 border-t border-gray-800">
-          <p className="font-mono">PWA + TWA Offline-Ready</p>
-          <p className="text-[10px] text-gray-600 mt-1">100% on-device data</p>
+        {/* User Info & Logout Button */}
+        <div className="pt-3 border-t border-gray-800 space-y-2">
+          {user && (
+            <div className="px-3 py-2 bg-gray-800/50 rounded-xl flex items-center justify-between text-xs">
+              <div className="truncate pr-2">
+                <span className="text-[10px] text-gray-400 block font-semibold uppercase">Usuario</span>
+                <span className="text-gray-200 font-medium truncate block">{user.email}</span>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-gray-700/60 rounded-lg transition-colors"
+                title="Cerrar sesión"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          <div className="px-2 text-xs text-gray-500">
+            <p className="text-[10px] font-mono">Datos aislados por usuario</p>
+          </div>
         </div>
       </aside>
 

@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import {
   db,
+  getDb,
   AccountRecord,
   ReceivableRecord,
   RecurringExpenseRecord,
@@ -18,8 +19,10 @@ export interface ImportSummary {
 
 export async function parseAndImportExcelFile(
   fileBuffer: ArrayBuffer,
-  monthKey: string = '2026-10'
+  monthKey: string = '2026-10',
+  userId?: string
 ): Promise<ImportSummary> {
+  const targetDb = getDb(userId);
   const workbook = XLSX.read(fileBuffer, { type: 'array', cellFormula: true, cellDates: true });
   const firstSheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[firstSheetName];
@@ -222,12 +225,12 @@ export async function parseAndImportExcelFile(
   }
 
   // Save to Dexie IndexedDB
-  await db.transaction('rw', [db.accounts, db.recurringExpenses, db.receivables, db.monthlyExtras, db.goals], async () => {
-    if (accounts.length > 0) await db.accounts.bulkPut(accounts);
-    if (expenses.length > 0) await db.recurringExpenses.bulkPut(expenses);
-    if (receivables.length > 0) await db.receivables.bulkPut(receivables);
-    if (extras.length > 0) await db.monthlyExtras.bulkPut(extras);
-    if (goals.length > 0) await db.goals.bulkPut(goals);
+  await targetDb.transaction('rw', [targetDb.accounts, targetDb.recurringExpenses, targetDb.receivables, targetDb.monthlyExtras, targetDb.goals], async () => {
+    if (accounts.length > 0) await targetDb.accounts.bulkPut(accounts);
+    if (expenses.length > 0) await targetDb.recurringExpenses.bulkPut(expenses);
+    if (receivables.length > 0) await targetDb.receivables.bulkPut(receivables);
+    if (extras.length > 0) await targetDb.monthlyExtras.bulkPut(extras);
+    if (goals.length > 0) await targetDb.goals.bulkPut(goals);
   });
 
   return {
@@ -239,15 +242,16 @@ export async function parseAndImportExcelFile(
   };
 }
 
-export async function exportLocalDataJson(): Promise<string> {
+export async function exportLocalDataJson(userId?: string): Promise<string> {
+  const targetDb = getDb(userId);
   const [accounts, transactions, recurringIncomes, receivables, recurringExpenses, monthlyExtras, goals] = await Promise.all([
-    db.accounts.toArray(),
-    db.transactions.toArray(),
-    db.recurringIncomes.toArray(),
-    db.receivables.toArray(),
-    db.recurringExpenses.toArray(),
-    db.monthlyExtras.toArray(),
-    db.goals.toArray(),
+    targetDb.accounts.toArray(),
+    targetDb.transactions.toArray(),
+    targetDb.recurringIncomes.toArray(),
+    targetDb.receivables.toArray(),
+    targetDb.recurringExpenses.toArray(),
+    targetDb.monthlyExtras.toArray(),
+    targetDb.goals.toArray(),
   ]);
 
   return JSON.stringify({
@@ -263,23 +267,24 @@ export async function exportLocalDataJson(): Promise<string> {
   }, null, 2);
 }
 
-export async function importLocalDataJson(jsonString: string): Promise<void> {
+export async function importLocalDataJson(jsonString: string, userId?: string): Promise<void> {
+  const targetDb = getDb(userId);
   const data = JSON.parse(jsonString);
-  await db.transaction('rw', [
-    db.accounts,
-    db.transactions,
-    db.recurringIncomes,
-    db.receivables,
-    db.recurringExpenses,
-    db.monthlyExtras,
-    db.goals,
+  await targetDb.transaction('rw', [
+    targetDb.accounts,
+    targetDb.transactions,
+    targetDb.recurringIncomes,
+    targetDb.receivables,
+    targetDb.recurringExpenses,
+    targetDb.monthlyExtras,
+    targetDb.goals,
   ], async () => {
-    if (data.accounts?.length) await db.accounts.bulkPut(data.accounts);
-    if (data.transactions?.length) await db.transactions.bulkPut(data.transactions);
-    if (data.recurringIncomes?.length) await db.recurringIncomes.bulkPut(data.recurringIncomes);
-    if (data.receivables?.length) await db.receivables.bulkPut(data.receivables);
-    if (data.recurringExpenses?.length) await db.recurringExpenses.bulkPut(data.recurringExpenses);
-    if (data.monthlyExtras?.length) await db.monthlyExtras.bulkPut(data.monthlyExtras);
-    if (data.goals?.length) await db.goals.bulkPut(data.goals);
+    if (data.accounts?.length) await targetDb.accounts.bulkPut(data.accounts);
+    if (data.transactions?.length) await targetDb.transactions.bulkPut(data.transactions);
+    if (data.recurringIncomes?.length) await targetDb.recurringIncomes.bulkPut(data.recurringIncomes);
+    if (data.receivables?.length) await targetDb.receivables.bulkPut(data.receivables);
+    if (data.recurringExpenses?.length) await targetDb.recurringExpenses.bulkPut(data.recurringExpenses);
+    if (data.monthlyExtras?.length) await targetDb.monthlyExtras.bulkPut(data.monthlyExtras);
+    if (data.goals?.length) await targetDb.goals.bulkPut(data.goals);
   });
 }
