@@ -23,7 +23,7 @@ import { formatCurrency } from '@/lib/i18n';
 import { restoreFromCloud } from '@/lib/sync/cloudSync';
 
 export default function DashboardPage() {
-  const { t, currentMonth, refreshTrigger, user, authLoading } = useApp();
+  const { t, currentMonth, setCurrentMonth, refreshTrigger, user, authLoading } = useApp();
   const [report, setReport] = useState<FinancialReport | null>(null);
   const [accounts, setAccounts] = useState<AccountRecord[]>([]);
   const [upcomingItems, setUpcomingItems] = useState<Array<{ name: string; amount: number; dueDay: number; type: 'bill' | 'income' }>>([]);
@@ -48,12 +48,16 @@ export default function DashboardPage() {
         try {
           const res = await restoreFromCloud(currentMonth, user.id);
           if (res.success && res.found) {
+            const targetMonth = res.restoredMonthKey || currentMonth;
             [accs, exps, recs, exts] = await Promise.all([
               db.accounts.toArray(),
-              db.recurringExpenses.where('monthKey').equals(currentMonth).toArray(),
-              db.receivables.where('monthKey').equals(currentMonth).toArray(),
-              db.monthlyExtras.where('monthKey').equals(currentMonth).toArray(),
+              db.recurringExpenses.where('monthKey').equals(targetMonth).toArray(),
+              db.receivables.where('monthKey').equals(targetMonth).toArray(),
+              db.monthlyExtras.where('monthKey').equals(targetMonth).toArray(),
             ]);
+            if (res.restoredMonthKey && res.restoredMonthKey !== currentMonth) {
+              setCurrentMonth(res.restoredMonthKey);
+            }
           }
         } catch {
           // Ignore

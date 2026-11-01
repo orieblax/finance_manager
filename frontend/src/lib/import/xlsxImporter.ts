@@ -267,9 +267,17 @@ export async function exportLocalDataJson(userId?: string): Promise<string> {
   }, null, 2);
 }
 
-export async function importLocalDataJson(jsonString: string, userId?: string): Promise<void> {
+export async function importLocalDataJson(
+  jsonInput: string | Record<string, any>,
+  userId?: string,
+  options?: { replaceMonthKey?: string }
+): Promise<void> {
   const targetDb = getDb(userId);
-  const data = JSON.parse(jsonString);
+  const data = typeof jsonInput === 'string' ? JSON.parse(jsonInput) : jsonInput;
+  if (!data || typeof data !== 'object') {
+    throw new Error('Formato de datos inválido');
+  }
+
   await targetDb.transaction('rw', [
     targetDb.accounts,
     targetDb.transactions,
@@ -279,6 +287,17 @@ export async function importLocalDataJson(jsonString: string, userId?: string): 
     targetDb.monthlyExtras,
     targetDb.goals,
   ], async () => {
+    if (options?.replaceMonthKey) {
+      const mk = options.replaceMonthKey;
+      if (Array.isArray(data.accounts)) await targetDb.accounts.clear();
+      if (Array.isArray(data.goals)) await targetDb.goals.clear();
+      if (Array.isArray(data.transactions)) await targetDb.transactions.clear();
+      if (Array.isArray(data.recurringIncomes)) await targetDb.recurringIncomes.clear();
+      if (Array.isArray(data.receivables)) await targetDb.receivables.where('monthKey').equals(mk).delete();
+      if (Array.isArray(data.recurringExpenses)) await targetDb.recurringExpenses.where('monthKey').equals(mk).delete();
+      if (Array.isArray(data.monthlyExtras)) await targetDb.monthlyExtras.where('monthKey').equals(mk).delete();
+    }
+
     if (data.accounts?.length) await targetDb.accounts.bulkPut(data.accounts);
     if (data.transactions?.length) await targetDb.transactions.bulkPut(data.transactions);
     if (data.recurringIncomes?.length) await targetDb.recurringIncomes.bulkPut(data.recurringIncomes);

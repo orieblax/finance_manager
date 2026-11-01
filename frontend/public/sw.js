@@ -1,12 +1,8 @@
-const CACHE_NAME = 'pfm-cache-v1';
+const CACHE_NAME = 'pfm-cache-v2';
 const PRECACHE_URLS = [
-  '/',
-  '/login',
-  '/accounts',
-  '/cashflow',
-  '/goals',
-  '/settings',
   '/manifest.webmanifest',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -32,25 +28,35 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests and skip api requests from caching
-  if (event.request.method !== 'GET' || event.request.url.includes('/api/')) {
+  const url = new URL(event.request.url);
+
+  // Skip non-GET requests, external origins (e.g. Supabase), and API endpoints
+  if (
+    event.request.method !== 'GET' ||
+    url.origin !== self.location.origin ||
+    url.pathname.startsWith('/api/')
+  ) {
     return;
   }
 
+  // Network-first strategy: always serve latest code/pages when online, fall back to cache offline
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Stale-while-revalidate in background
-        fetch(event.request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));
-            }
-          })
-          .catch(() => {});
-        return cachedResponse;
-      }
-      return fetch(event.request).catch(() => caches.match('/'));
-    })
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const cloned = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
+        }
+        return networkResponse;
+      })
+      .catch(() =>
+        caches.match(event.request).then((cachedResponse) => {
+          if (cachedResponse) return cachedResponse;
+          if (event.request.mode === 'navigate') {
+            return caches.match('/');
+          }
+          return new Response('Offline', { status: 503 });
+        })
+      )
   );
 });

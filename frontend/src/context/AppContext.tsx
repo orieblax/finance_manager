@@ -4,8 +4,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { translations, Language } from '@/lib/i18n';
 import { createClient } from '@/utils/supabase/client';
-import { setActiveUserId, getDb } from '@/lib/db/dexie';
-import { restoreFromCloud } from '@/lib/sync/cloudSync';
+import { setActiveUserId } from '@/lib/db/dexie';
+import { autoSyncFromCloud } from '@/lib/sync/cloudSync';
 
 interface AppContextType {
   lang: Language;
@@ -43,65 +43,66 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setLangState(savedLang);
     }
     const savedMonth = localStorage.getItem('pfm_month');
-    if (savedMonth) {
-      setCurrentMonthState(savedMonth);
-    } else {
-      const d = new Date();
-      const mStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      setCurrentMonthState(mStr);
-    }
+    const d = new Date();
+    const defaultMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const initialMonth = savedMonth || defaultMonth;
+    setCurrentMonthState(initialMonth);
 
-    // Check active auth session
+    // Check active auth session once on mount and auto-sync from Supabase
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       setUser(user ?? null);
       if (user) {
         setActiveUserId(user.id);
-        try {
-          // If local IndexedDB is fresh/empty on this device, automatically hydrate from Supabase
-          const targetDb = getDb(user.id);
-          const count = await targetDb.accounts.count();
-          if (count === 0) {
-            await restoreFromCloud(undefined, user.id);
+        setAuthLoading(false);
+        triggerRefresh();
+
+        // Sync fresh or newer cloud snapshot in background and refresh UI when ready
+        const syncRes = await autoSyncFromCloud(initialMonth, user.id);
+        if (syncRes.success && syncRes.found) {
+          if (syncRes.restoredMonthKey && !savedMonth) {
+            setCurrentMonthState(syncRes.restoredMonthKey);
+            localStorage.setItem('pfm_month', syncRes.restoredMonthKey);
           }
-        } catch {
-          // Ignore offline or initial network issues
+          triggerRefresh();
         }
       } else {
         setActiveUserId(undefined);
+        setAuthLoading(false);
+        triggerRefresh();
       }
-      setAuthLoading(false);
-      triggerRefresh();
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       const activeUser = session?.user ?? null;
       setUser(activeUser);
       if (activeUser) {
         setActiveUserId(activeUser.id);
-        try {
-          const targetDb = getDb(activeUser.id);
-          const count = await targetDb.accounts.count();
-          if (count === 0) {
-            await restoreFromCloud(undefined, activeUser.id);
+        setAuthLoading(false);
+        triggerRefresh();
+
+        if (event === 'SIGNED_IN') {
+          const syncRes = await autoSyncFromCloud(initialMonth, activeUser.id);
+          if (syncRes.success && syncRes.found) {
+            triggerRefresh();
           }
-        } catch {
-          // Ignore
         }
       } else {
         setActiveUserId(undefined);
-      }
-      setAuthLoading(false);
-      triggerRefresh();
-
-      if (!activeUser && pathname !== '/login') {
-        router.push('/login');
+        setAuthLoading(false);
+        triggerRefresh();
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase, pathname, router]);
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!authLoading && !user && pathname !== '/login') {
+      router.push('/login');
+    }
+  }, [authLoading, user, pathname, router]);
 
   const setLang = (newLang: Language) => {
     setLangState(newLang);

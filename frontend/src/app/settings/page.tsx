@@ -18,7 +18,7 @@ import { db } from '@/lib/db/dexie';
 import { pushToCloud, restoreFromCloud } from '@/lib/sync/cloudSync';
 
 export default function SettingsPage() {
-  const { t, lang, setLang, currentMonth, triggerRefresh, showMessage, user, logout } = useApp();
+  const { t, lang, setLang, currentMonth, setCurrentMonth, triggerRefresh, showMessage, user, logout } = useApp();
 
   // Sync state
   const [isSyncing, setIsSyncing] = useState(false);
@@ -32,7 +32,7 @@ export default function SettingsPage() {
 
     try {
       const buffer = await file.arrayBuffer();
-      const res = await parseAndImportExcelFile(buffer, currentMonth);
+      const res = await parseAndImportExcelFile(buffer, currentMonth, user?.id);
       triggerRefresh();
       showMessage(
         `Importación exitosa: ${res.accountsCount} cuentas, ${res.expensesCount} egresos, ${res.receivablesCount} cobros, ${res.goalsCount} metas`,
@@ -46,7 +46,7 @@ export default function SettingsPage() {
   // Handle JSON Export
   const handleExportJson = async () => {
     try {
-      const jsonStr = await exportLocalDataJson();
+      const jsonStr = await exportLocalDataJson(user?.id);
       const blob = new Blob([jsonStr], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -67,7 +67,7 @@ export default function SettingsPage() {
 
     try {
       const text = await file.text();
-      await importLocalDataJson(text);
+      await importLocalDataJson(text, user?.id);
       triggerRefresh();
       showMessage('Copia de seguridad restaurada con éxito', 'success');
     } catch (err: any) {
@@ -108,8 +108,14 @@ export default function SettingsPage() {
     setIsRestoring(true);
     try {
       const res = await restoreFromCloud(currentMonth, user.id);
-      if (res.success && res.found) {
-        triggerRefresh();
+      if (!res.success) {
+        showMessage(res.message || 'Error al descargar datos de la nube', 'error');
+      } else if (res.found) {
+        if (res.restoredMonthKey && res.restoredMonthKey !== currentMonth) {
+          setCurrentMonth(res.restoredMonthKey);
+        } else {
+          triggerRefresh();
+        }
         const time = new Date().toLocaleTimeString();
         setLastSyncTime(time);
         showMessage(res.message || 'Datos descargados y restaurados con éxito', 'success');
