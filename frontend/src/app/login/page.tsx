@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogIn, UserPlus, Lock, Mail, AlertCircle, CheckCircle2, ShieldCheck, Sparkles } from 'lucide-react';
+import { LogIn, UserPlus, Lock, Mail, AlertCircle, CheckCircle2, ShieldCheck, Sparkles, AlertTriangle } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 import { useApp } from '@/context/AppContext';
 
@@ -10,6 +10,10 @@ export default function LoginPage() {
   const router = useRouter();
   const { lang, setLang, showMessage } = useApp();
   const supabase = createClient();
+
+  const isSupabaseConfigured =
+    Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
+    !process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder');
 
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
@@ -25,6 +29,14 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      if (!isSupabaseConfigured) {
+        throw new Error(
+          lang === 'es'
+            ? 'Faltan las variables de entorno de Supabase en Vercel (NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY). Por favor agrégalas en Vercel Project Settings > Environment Variables y haz un Redeploy.'
+            : 'Supabase environment variables are missing in Vercel (NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY). Please add them in Vercel Project Settings > Environment Variables and redeploy.'
+        );
+      }
+
       if (isSignUp) {
         const { data, error } = await supabase.auth.signUp({
           email,
@@ -35,8 +47,8 @@ export default function LoginPage() {
         if (data.user && !data.session) {
           setInfoMessage(
             lang === 'es'
-              ? 'Cuenta creada. Por favor revisa tu correo electrónico para confirmar tu cuenta.'
-              : 'Account created. Please check your email to confirm your account.'
+              ? 'Cuenta creada. Si la confirmación de correo está activada en Supabase, revisa tu bandeja de entrada para verificar tu cuenta antes de iniciar sesión.'
+              : 'Account created. If email confirmation is enabled in Supabase, please check your inbox to confirm your account before logging in.'
           );
         } else {
           showMessage(lang === 'es' ? '¡Bienvenido! Cuenta creada con éxito' : 'Welcome! Account created successfully', 'success');
@@ -55,7 +67,19 @@ export default function LoginPage() {
         router.refresh();
       }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Error al procesar la solicitud');
+      let msg = err.message || 'Error al procesar la solicitud';
+      if (msg.includes('rate limit')) {
+        msg =
+          lang === 'es'
+            ? 'Límite de envío de correos alcanzado en Supabase. En tu consola de Supabase ve a Authentication > Providers > Email y desactiva "Confirm email" para registro instantáneo.'
+            : 'Email send rate limit reached on Supabase. Go to Supabase Console > Authentication > Providers > Email and disable "Confirm email" for instant signup.';
+      } else if (msg.includes('Invalid login credentials')) {
+        msg =
+          lang === 'es'
+            ? 'Credenciales incorrectas o correo pendiente de confirmación en tu bandeja de entrada.'
+            : 'Invalid login credentials or email confirmation pending in your inbox.';
+      }
+      setErrorMessage(msg);
     } finally {
       setLoading(false);
     }
@@ -91,6 +115,22 @@ export default function LoginPage() {
 
         {/* Auth Card */}
         <div className="bg-gray-900 border border-gray-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-5">
+          {!isSupabaseConfigured && (
+            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-1.5">
+              <div className="flex items-center gap-2 font-bold text-amber-200">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>
+                  {lang === 'es' ? 'Variables de Supabase Requeridas en Vercel' : 'Supabase Variables Required in Vercel'}
+                </span>
+              </div>
+              <p className="leading-relaxed">
+                {lang === 'es'
+                  ? 'Para que el registro e inicio de sesión funcionen en Vercel, debes agregar NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY en Settings > Environment Variables y hacer Redeploy.'
+                  : 'For signup and signin to work on Vercel, configure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in Settings > Environment Variables and trigger a Redeploy.'}
+              </p>
+            </div>
+          )}
+
           {/* Tabs */}
           <div className="flex bg-gray-800/70 p-1 rounded-2xl">
             <button
