@@ -18,6 +18,7 @@ import {
 import { useApp } from '@/context/AppContext';
 import { db, AccountRecord, TransactionRecord } from '@/lib/db/dexie';
 import { formatCurrency } from '@/lib/i18n';
+import { restoreFromCloud } from '@/lib/sync/cloudSync';
 
 export default function AccountsPage() {
   const { t, refreshTrigger, triggerRefresh, showMessage, user, authLoading } = useApp();
@@ -49,7 +50,15 @@ export default function AccountsPage() {
 
   useEffect(() => {
     async function loadAccounts() {
-      const accs = await db.accounts.toArray();
+      let accs = await db.accounts.toArray();
+      if (accs.length === 0 && user) {
+        try {
+          const res = await restoreFromCloud(undefined, user.id);
+          if (res.success && res.found) {
+            accs = await db.accounts.toArray();
+          }
+        } catch {}
+      }
       const txs = await db.transactions.orderBy('createdAt').reverse().limit(20).toArray();
       setAccounts(accs);
       setTransactions(txs);
@@ -60,7 +69,7 @@ export default function AccountsPage() {
       }
     }
     loadAccounts();
-  }, [refreshTrigger]);
+  }, [refreshTrigger, user]);
 
   const wallets = accounts.filter((a) => a.type === 'wallet');
   const investments = accounts.filter((a) => a.type === 'investment');

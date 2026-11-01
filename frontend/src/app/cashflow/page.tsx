@@ -25,6 +25,7 @@ import {
   MonthlyExtraRecord,
 } from '@/lib/db/dexie';
 import { formatCurrency } from '@/lib/i18n';
+import { restoreFromCloud } from '@/lib/sync/cloudSync';
 
 export default function CashflowPage() {
   const { t, currentMonth, setCurrentMonth, refreshTrigger, triggerRefresh, showMessage, user, authLoading } = useApp();
@@ -66,12 +67,26 @@ export default function CashflowPage() {
 
   useEffect(() => {
     async function loadData() {
-      const [accs, recs, exps, exts] = await Promise.all([
+      let [accs, recs, exps, exts] = await Promise.all([
         db.accounts.where('type').equals('wallet').toArray(),
         db.receivables.where('monthKey').equals(currentMonth).toArray(),
         db.recurringExpenses.where('monthKey').equals(currentMonth).toArray(),
         db.monthlyExtras.where('monthKey').equals(currentMonth).toArray(),
       ]);
+
+      if (accs.length === 0 && user) {
+        try {
+          const res = await restoreFromCloud(currentMonth, user.id);
+          if (res.success && res.found) {
+            [accs, recs, exps, exts] = await Promise.all([
+              db.accounts.where('type').equals('wallet').toArray(),
+              db.receivables.where('monthKey').equals(currentMonth).toArray(),
+              db.recurringExpenses.where('monthKey').equals(currentMonth).toArray(),
+              db.monthlyExtras.where('monthKey').equals(currentMonth).toArray(),
+            ]);
+          }
+        } catch {}
+      }
 
       setAccounts(accs);
       setReceivables(recs.sort((a, b) => a.dueDay - b.dueDay));
@@ -84,7 +99,7 @@ export default function CashflowPage() {
       }
     }
     loadData();
-  }, [currentMonth, refreshTrigger]);
+  }, [currentMonth, refreshTrigger, user]);
 
   // Action: 1-Tap Collect Receivable
   const handleConfirmCollect = async () => {

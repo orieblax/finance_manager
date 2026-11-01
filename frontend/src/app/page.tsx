@@ -20,6 +20,7 @@ import { useApp } from '@/context/AppContext';
 import { db, AccountRecord, RecurringExpenseRecord, ReceivableRecord, MonthlyExtraRecord } from '@/lib/db/dexie';
 import { calculateProjections, FinancialReport } from '@/lib/finance/projections';
 import { formatCurrency } from '@/lib/i18n';
+import { restoreFromCloud } from '@/lib/sync/cloudSync';
 
 export default function DashboardPage() {
   const { t, currentMonth, refreshTrigger, user, authLoading } = useApp();
@@ -35,12 +36,29 @@ export default function DashboardPage() {
         return;
       }
       setIsLoading(true);
-      const [accs, exps, recs, exts] = await Promise.all([
+      let [accs, exps, recs, exts] = await Promise.all([
         db.accounts.toArray(),
         db.recurringExpenses.where('monthKey').equals(currentMonth).toArray(),
         db.receivables.where('monthKey').equals(currentMonth).toArray(),
         db.monthlyExtras.where('monthKey').equals(currentMonth).toArray(),
       ]);
+
+      // If local IndexedDB is empty on this device, automatically restore from Supabase
+      if (accs.length === 0) {
+        try {
+          const res = await restoreFromCloud(currentMonth, user.id);
+          if (res.success && res.found) {
+            [accs, exps, recs, exts] = await Promise.all([
+              db.accounts.toArray(),
+              db.recurringExpenses.where('monthKey').equals(currentMonth).toArray(),
+              db.receivables.where('monthKey').equals(currentMonth).toArray(),
+              db.monthlyExtras.where('monthKey').equals(currentMonth).toArray(),
+            ]);
+          }
+        } catch {
+          // Ignore
+        }
+      }
 
       setAccounts(accs);
 
@@ -74,7 +92,7 @@ export default function DashboardPage() {
     }
 
     loadData();
-  }, [currentMonth, refreshTrigger]);
+  }, [currentMonth, refreshTrigger, user]);
 
   if (authLoading || isLoading || !report) {
     return (

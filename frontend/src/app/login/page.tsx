@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { LogIn, UserPlus, Lock, Mail, AlertCircle, CheckCircle2, ShieldCheck, Sparkles, AlertTriangle } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 import { useApp } from '@/context/AppContext';
+import { setActiveUserId } from '@/lib/db/dexie';
+import { restoreFromCloud } from '@/lib/sync/cloudSync';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -51,6 +53,12 @@ export default function LoginPage() {
               : 'Account created. If email confirmation is enabled in Supabase, please check your inbox to confirm your account before logging in.'
           );
         } else {
+          if (data.user) {
+            setActiveUserId(data.user.id);
+            try {
+              await restoreFromCloud(undefined, data.user.id);
+            } catch {}
+          }
           showMessage(lang === 'es' ? '¡Bienvenido! Cuenta creada con éxito' : 'Welcome! Account created successfully', 'success');
           router.push('/');
           router.refresh();
@@ -61,6 +69,15 @@ export default function LoginPage() {
           password,
         });
         if (error) throw error;
+
+        // Immediately hydrate local IndexedDB from Supabase snapshot
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData?.user) {
+          setActiveUserId(userData.user.id);
+          try {
+            await restoreFromCloud(undefined, userData.user.id);
+          } catch {}
+        }
 
         showMessage(lang === 'es' ? 'Sesión iniciada con éxito' : 'Signed in successfully', 'success');
         router.push('/');

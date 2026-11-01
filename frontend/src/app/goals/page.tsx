@@ -5,6 +5,7 @@ import { Target, Plus, CheckCircle2, TrendingUp, DollarSign, X } from 'lucide-re
 import { useApp } from '@/context/AppContext';
 import { db, GoalRecord, AccountRecord } from '@/lib/db/dexie';
 import { formatCurrency } from '@/lib/i18n';
+import { restoreFromCloud } from '@/lib/sync/cloudSync';
 
 export default function GoalsPage() {
   const { t, refreshTrigger, triggerRefresh, showMessage, user, authLoading } = useApp();
@@ -24,16 +25,29 @@ export default function GoalsPage() {
 
   useEffect(() => {
     async function loadGoals() {
-      const [gList, wList] = await Promise.all([
+      let [gList, wList] = await Promise.all([
         db.goals.toArray(),
         db.accounts.where('type').equals('wallet').toArray(),
       ]);
+
+      if (gList.length === 0 && user) {
+        try {
+          const res = await restoreFromCloud(undefined, user.id);
+          if (res.success && res.found) {
+            [gList, wList] = await Promise.all([
+              db.goals.toArray(),
+              db.accounts.where('type').equals('wallet').toArray(),
+            ]);
+          }
+        } catch {}
+      }
+
       setGoals(gList);
       setWallets(wList);
       if (wList.length > 0) setAllocWalletId(wList[0].id);
     }
     loadGoals();
-  }, [refreshTrigger]);
+  }, [refreshTrigger, user]);
 
   const handleCreateGoal = async (e: React.FormEvent) => {
     e.preventDefault();

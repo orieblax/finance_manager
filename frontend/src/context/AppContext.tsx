@@ -4,7 +4,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { translations, Language } from '@/lib/i18n';
 import { createClient } from '@/utils/supabase/client';
-import { setActiveUserId } from '@/lib/db/dexie';
+import { setActiveUserId, getDb } from '@/lib/db/dexie';
+import { restoreFromCloud } from '@/lib/sync/cloudSync';
 
 interface AppContextType {
   lang: Language;
@@ -51,10 +52,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Check active auth session
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       setUser(user ?? null);
       if (user) {
         setActiveUserId(user.id);
+        try {
+          // If local IndexedDB is fresh/empty on this device, automatically hydrate from Supabase
+          const targetDb = getDb(user.id);
+          const count = await targetDb.accounts.count();
+          if (count === 0) {
+            await restoreFromCloud(undefined, user.id);
+          }
+        } catch {
+          // Ignore offline or initial network issues
+        }
       } else {
         setActiveUserId(undefined);
       }
@@ -62,11 +73,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       triggerRefresh();
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const activeUser = session?.user ?? null;
       setUser(activeUser);
       if (activeUser) {
         setActiveUserId(activeUser.id);
+        try {
+          const targetDb = getDb(activeUser.id);
+          const count = await targetDb.accounts.count();
+          if (count === 0) {
+            await restoreFromCloud(undefined, activeUser.id);
+          }
+        } catch {
+          // Ignore
+        }
       } else {
         setActiveUserId(undefined);
       }

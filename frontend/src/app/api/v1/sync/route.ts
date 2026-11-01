@@ -29,26 +29,47 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const monthKey = searchParams.get('month_key') || 'device_backup';
+    const monthKey = searchParams.get('month_key');
 
-    // 2. Fetch snapshot
-    const { data, error } = await supabase
-      .from('finance_snapshots')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('month_key', monthKey)
-      .maybeSingle();
+    // 2. Fetch snapshot for the requested month, or fall back to the most recent snapshot
+    let snapshotData = null;
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (monthKey && monthKey !== 'latest') {
+      const { data, error } = await supabase
+        .from('finance_snapshots')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('month_key', monthKey)
+        .maybeSingle();
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      snapshotData = data;
+    }
+
+    // If not found by specific month or month was 'latest'/empty, get latest available snapshot
+    if (!snapshotData) {
+      const { data, error } = await supabase
+        .from('finance_snapshots')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      snapshotData = data;
     }
 
     return NextResponse.json({
-      found: !!data,
+      found: !!snapshotData,
       user_id: user.id,
-      month_key: monthKey,
-      updated_at: data?.updated_at || null,
-      payload: data?.payload || null,
+      month_key: snapshotData?.month_key || monthKey || 'latest',
+      updated_at: snapshotData?.updated_at || null,
+      payload: snapshotData?.payload || null,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'internal server error' }, { status: 500 });

@@ -15,12 +15,14 @@ import {
 import { useApp } from '@/context/AppContext';
 import { parseAndImportExcelFile, exportLocalDataJson, importLocalDataJson } from '@/lib/import/xlsxImporter';
 import { db } from '@/lib/db/dexie';
+import { pushToCloud, restoreFromCloud } from '@/lib/sync/cloudSync';
 
 export default function SettingsPage() {
   const { t, lang, setLang, currentMonth, triggerRefresh, showMessage, user, logout } = useApp();
 
   // Sync state
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
 
   // Handle Excel File Upload
@@ -73,48 +75,51 @@ export default function SettingsPage() {
     }
   };
 
-  // Handle Cloud Sync (Push current Dexie state to Supabase)
-  const handleCloudSync = async () => {
+  // Handle Cloud Upload (Push current Dexie state to Supabase)
+  const handleCloudUpload = async () => {
     if (!user) {
-      showMessage('Debes iniciar sesión con tu cuenta para sincronizar', 'error');
+      showMessage('Debes iniciar sesión con tu cuenta para respaldar', 'error');
       return;
     }
 
     setIsSyncing(true);
     try {
-      // 1. Export local state
-      const [accounts, receivables, recurringExpenses, monthlyExtras, goals] = await Promise.all([
-        db.accounts.toArray(),
-        db.receivables.where('monthKey').equals(currentMonth).toArray(),
-        db.recurringExpenses.where('monthKey').equals(currentMonth).toArray(),
-        db.monthlyExtras.where('monthKey').equals(currentMonth).toArray(),
-        db.goals.toArray(),
-      ]);
-
-      const payload = { accounts, receivables, recurringExpenses, monthlyExtras, goals };
-
-      const res = await fetch('/api/v1/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          month_key: currentMonth,
-          device_id: 'web-pwa',
-          payload,
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Fallo al sincronizar con el servidor');
+      const res = await pushToCloud(currentMonth, user.id);
+      if (res.success) {
+        setLastSyncTime(res.timestamp || new Date().toLocaleTimeString());
+        showMessage(res.message || 'Copia guardada en la nube con éxito', 'success');
+      } else {
+        showMessage(res.message || 'Error al respaldar en la nube', 'error');
       }
-
-      const syncTime = new Date().toLocaleTimeString();
-      setLastSyncTime(syncTime);
-      showMessage(`Sincronización completada con éxito (${syncTime})`, 'success');
     } catch (err: any) {
-      showMessage(err.message || 'Error durante la sincronización', 'error');
+      showMessage(err.message || 'Error durante el respaldo en la nube', 'error');
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  // Handle Cloud Download (Pull latest snapshot from Supabase into Dexie)
+  const handleCloudDownload = async () => {
+    if (!user) {
+      showMessage('Debes iniciar sesión con tu cuenta para descargar datos', 'error');
+      return;
+    }
+
+    setIsRestoring(true);
+    try {
+      const res = await restoreFromCloud(currentMonth, user.id);
+      if (res.success && res.found) {
+        triggerRefresh();
+        const time = new Date().toLocaleTimeString();
+        setLastSyncTime(time);
+        showMessage(res.message || 'Datos descargados y restaurados con éxito', 'success');
+      } else {
+        showMessage(res.message || 'No se encontraron datos en la nube para este usuario', 'info');
+      }
+    } catch (err: any) {
+      showMessage(err.message || 'Error al descargar datos de la nube', 'error');
+    } finally {
+      setIsRestoring(false);
     }
   };
 
@@ -232,20 +237,32 @@ export default function SettingsPage() {
 
         <div className="bg-gray-800/60 border border-gray-700/60 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <span className="text-xs font-medium text-gray-400">Sincronización de tu cuenta:</span>
+            <span className="text-xs font-medium text-gray-400">Sincronización en la Nube:</span>
             <p className="text-sm font-bold text-white">{user?.email}</p>
-            {lastSyncTime && (
-              <p className="text-[11px] text-indigo-400 mt-0.5">Última sincronización: {lastSyncTime}</p>
+            {lastSyncTime ? (
+              <p className="text-[11px] text-emerald-400 mt-0.5">Última acción: {lastSyncTime}</p>
+            ) : (
+              <p className="text-[11px] text-indigo-400 mt-0.5">Respalda o descarga tus finanzas en cualquier dispositivo</p>
             )}
           </div>
-          <button
-            onClick={handleCloudSync}
-            disabled={isSyncing}
-            className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-md transition-colors"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-            <span>{isSyncing ? 'Sincronizando...' : t.settings.syncNow}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCloudDownload}
+              disabled={isRestoring || isSyncing}
+              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-md transition-colors"
+            >
+              <Download className={`w-3.5 h-3.5 ${isRestoring ? 'animate-bounce' : ''}`} />
+              <span>{isRestoring ? 'Descargando...' : t.settings.downloadFromCloud}</span>
+            </button>
+            <button
+              onClick={handleCloudUpload}
+              disabled={isSyncing || isRestoring}
+              className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-md transition-colors"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span>{isSyncing ? 'Guardando...' : t.settings.uploadToCloud}</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
