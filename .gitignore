@@ -37,6 +37,8 @@ Gastos*.xlsx
 # Android / TWA builds & Keystores
 *.keystore
 *.jks
+*.apk
+*.aab
 android-twa/build/
 android-twa/app/build/
 android-twa/.gradle/

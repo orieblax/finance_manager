@@ -8,9 +8,6 @@ import {
   Download,
   Cloud,
   RefreshCw,
-  Copy,
-  Check,
-  Shield,
   FileSpreadsheet,
   LogOut,
   User,
@@ -25,9 +22,6 @@ export default function SettingsPage() {
   // Sync state
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
-
-  // Copied SQL state
-  const [isSqlCopied, setIsSqlCopied] = useState(false);
 
   // Handle Excel File Upload
   const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -122,27 +116,6 @@ export default function SettingsPage() {
     } finally {
       setIsSyncing(false);
     }
-  };
-
-  // Copy Schema SQL
-  const handleCopySql = () => {
-    const sql = `-- Copia y pega esto en el SQL Editor de tu Dashboard de Supabase:
-CREATE TABLE IF NOT EXISTS public.finance_snapshots (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    month_key TEXT NOT NULL,
-    payload JSONB NOT NULL,
-    device_id TEXT,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
-    CONSTRAINT uq_user_month UNIQUE (user_id, month_key)
-);
-ALTER TABLE public.finance_snapshots ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can manage own snapshots" ON public.finance_snapshots FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);`;
-
-    navigator.clipboard.writeText(sql);
-    setIsSqlCopied(true);
-    setTimeout(() => setIsSqlCopied(false), 3000);
-    showMessage('SQL copiado al portapapeles', 'success');
   };
 
   return (
@@ -274,26 +247,6 @@ CREATE POLICY "Users can manage own snapshots" ON public.finance_snapshots FOR A
             <span>{isSyncing ? 'Sincronizando...' : t.settings.syncNow}</span>
           </button>
         </div>
-      </div>
-
-      {/* SQL Setup Helper */}
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-white flex items-center gap-2">
-            <Shield className="w-5 h-5 text-indigo-400" />
-            {t.settings.sqlHelpTitle}
-          </h2>
-          <button
-            onClick={handleCopySql}
-            className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-indigo-400 px-3 py-1.5 rounded-xl text-xs font-semibold border border-gray-700 transition-colors"
-          >
-            {isSqlCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{isSqlCopied ? '¡Copiado!' : t.settings.copySqlBtn}</span>
-          </button>
-        </div>
-        <p className="text-xs text-gray-400">
-          Si aún no has creado las tablas en tu proyecto de Supabase, puedes copiar el script SQL generado (con seguridad RLS por usuario) y ejecutarlo en el SQL Editor de tu consola de Supabase.
-        </p>
       </div>
     </div>
   );

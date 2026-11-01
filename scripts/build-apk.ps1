@@ -11,7 +11,11 @@ $ErrorActionPreference = "Stop"
 $root = (Get-Item $PSScriptRoot).Parent.FullName
 $twaDir = Join-Path $root "android-twa"
 $ksPath = Join-Path $twaDir "android.keystore"
-$jdkBin = "C:\Program Files\Microsoft\jdk-21.0.12.101-hotspot\bin"
+$jdkDir = "$env:USERPROFILE\jdk-17"
+if (-not (Test-Path "$jdkDir\bin\java.exe")) {
+    $jdkDir = "C:\Program Files\Microsoft\jdk-21.0.12.101-hotspot"
+}
+$jdkBin = Join-Path $jdkDir "bin"
 $keytool = Join-Path $jdkBin "keytool.exe"
 
 Write-Host "=========================================================="
@@ -73,7 +77,7 @@ if (Test-Path $sdkDir) {
 }
 
 # Set JAVA_HOME
-$env:JAVA_HOME = "C:\Program Files\Microsoft\jdk-21.0.12.101-hotspot"
+$env:JAVA_HOME = $jdkDir
 $env:Path = "$jdkBin;" + $env:Path
 
 Write-Host "Ready to assemble Android APK using Gradle in $twaDir."

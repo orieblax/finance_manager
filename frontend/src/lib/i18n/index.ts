@@ -73,8 +73,6 @@ export const translations = {
       syncNotice: 'Inicia sesión con tu cuenta de Supabase para respaldar tus datos en la nube de forma cifrada.',
       loginWithEmail: 'Iniciar sesión con Email',
       syncNow: 'Sincronizar Ahora',
-      sqlHelpTitle: 'Esquema de Base de Datos Supabase',
-      copySqlBtn: 'Copiar SQL para Supabase Editor',
     },
     common: {
       save: 'Guardar',
@@ -159,8 +157,6 @@ export const translations = {
       syncNotice: 'Sign in with Supabase Auth to optionally back up and sync your encrypted ledger to the cloud.',
       loginWithEmail: 'Sign In with Email',
       syncNow: 'Sync Now',
-      sqlHelpTitle: 'Supabase Database Schema',
-      copySqlBtn: 'Copy SQL for Supabase SQL Editor',
     },
     common: {
       save: 'Save',
