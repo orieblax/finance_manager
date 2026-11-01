@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing & Coverage
+coverage/
+
+# Next.js build output
+.next/
+out/
+build/
+dist/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files - NEVER commit secrets
+.env
+.env*.local
+.env.development
+.env.test
+.env.production
+!.env.example
+
+# Sensitive user financial files & spreadsheets
+*.xlsx
+*.xls
+*.csv
+Gastos*.xlsx
+
+# Android / TWA builds & Keystores
+*.keystore
+*.jks
+android-twa/build/
+android-twa/app/build/
+android-twa/.gradle/
+android-twa/local.properties
+android-twa/signing.properties
+android-sdk/
+cmdline-tools/
+
+# Go binaries & cache
+backend/bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# OS & IDE metadata
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo

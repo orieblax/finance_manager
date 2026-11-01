@@ -1,0 +1,12 @@
+﻿[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.orieblax.financemanager",
+      "sha256_cert_fingerprints": [
+        "C2:6D:B5:AF:3C:3B:2E:40:95:71:A1:F4:8F:C3:CF:81:62:7D:DB:69:06:86:DD:E4:2D:49:A0:8F:8F:37:44:9D"
+      ]
+    }
+  }
+]

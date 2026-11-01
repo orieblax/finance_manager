@@ -1,0 +1,58 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.orieblax.financemanager'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.orieblax.financemanager"
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        // Default TWA settings
+        manifestPlaceholders = [
+            hostName: "finance-manager-orieblax.vercel.app",
+            defaultUrl: "https://finance-manager-orieblax.vercel.app",
+            launcherName: "Finanzas",
+            appName: "Personal Finance Manager",
+            assetStatements: '[{ "relation": ["delegate_permission/common.handle_all_urls"], "target": {"namespace": "android_app", "package_name": "com.orieblax.financemanager", "sha256_cert_fingerprints": ["C2:6D:B5:AF:3C:3B:2E:40:95:71:A1:F4:8F:C3:CF:81:62:7D:DB:69:06:86:DD:E4:2D:49:A0:8F:8F:37:44:9D"]}}]'
+        ]
+    }
+
+    signingConfigs {
+        release {
+            storeFile file('../android.keystore')
+            storePassword 'pfmandroid123'
+            keyAlias 'pfm-key'
+            keyPassword 'pfmandroid123'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+}
